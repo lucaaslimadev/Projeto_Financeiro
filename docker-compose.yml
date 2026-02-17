@@ -1,0 +1,64 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: projeto_financeiro_db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: projeto_financeiro
+    ports:
+      - "5434:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./database/init.sql:/docker-entrypoint-initdb.d/01-init.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  backend:
+    image: projeto_financeiro-backend
+    platform: linux/amd64
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: projeto_financeiro_backend
+    restart: unless-stopped
+    environment:
+      NODE_ENV: production
+      PORT: 3001
+      DATABASE_URL: postgresql://postgres:postgres@postgres:5432/projeto_financeiro?schema=public
+      API_PREFIX: /api/v1
+      CORS_ORIGIN: http://localhost:3010
+      JWT_SECRET: ${JWT_SECRET:-change-me-in-production}
+      JWT_EXPIRES_IN: ${JWT_EXPIRES_IN:-7d}
+      TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN:-}
+      TELEGRAM_WEBHOOK_URL: ${TELEGRAM_WEBHOOK_URL:-}
+      CRON_RECURRING_DISABLED: ${CRON_RECURRING_DISABLED:-0}
+      CRON_ALERTS_TELEGRAM_DISABLED: ${CRON_ALERTS_TELEGRAM_DISABLED:-0}
+    ports:
+      - "${BACKEND_PORT:-3011}:3001"
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      args:
+        NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://localhost:3011/api/v1}
+    container_name: projeto_financeiro_frontend
+    restart: unless-stopped
+    environment:
+      NODE_ENV: production
+      PORT: 3000
+    ports:
+      - "${FRONTEND_PORT:-3010}:3000"
+    depends_on:
+      - backend
+
+volumes:
+  postgres_data:

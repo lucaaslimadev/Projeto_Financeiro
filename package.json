@@ -1,0 +1,33 @@
+{
+  "name": "projeto-financeiro",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Controle financeiro pessoal com integração Telegram",
+  "scripts": {
+    "dev:backend": "npm run dev --workspace=backend",
+    "dev:frontend": "npm run dev --workspace=frontend",
+    "build:backend": "npm run build --workspace=backend",
+    "build:frontend": "npm run build --workspace=frontend",
+    "db:generate": "cp .env backend/.env 2>/dev/null || true && npm run db:generate --workspace=backend",
+    "db:migrate": "cp .env backend/.env 2>/dev/null || true && npm run db:migrate --workspace=backend",
+    "db:studio": "cp .env backend/.env 2>/dev/null || true && npm run db:studio --workspace=backend",
+    "db:seed": "npm run db:seed --workspace=backend",
+    "docker:up": "docker-compose up -d",
+    "docker:down": "docker-compose down",
+    "test": "npm run test --workspace=backend",
+    "test:watch": "npm run test:watch --workspace=backend"
+  },
+  "workspaces": [
+    "backend",
+    "frontend"
+  ],
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "devDependencies": {
+    "prisma": "^7.4.0"
+  },
+  "dependencies": {
+    "@prisma/client": "^7.4.0"
+  }
+}

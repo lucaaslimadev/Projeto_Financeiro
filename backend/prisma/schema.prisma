@@ -1,0 +1,123 @@
+// Projeto Financeiro - Schema Prisma
+// PostgreSQL + Prisma ORM - Sistema financeiro pessoal
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// =============================================================================
+// USERS
+// =============================================================================
+model User {
+  id                      String    @id @default(uuid())
+  name                    String
+  email                   String    @unique
+  passwordHash            String    @map("password_hash")
+  balance                 Decimal?  @db.Decimal(12, 2) @default(0) // saldo atual (conta corrente)
+  telegramId              String?   @unique @map("telegram_id")
+  telegramLinkCode        String?   @map("telegram_link_code")   // código temporário para vincular no app
+  telegramLinkCodeExpiresAt DateTime? @map("telegram_link_code_expires_at")
+  createdAt               DateTime  @default(now()) @map("created_at")
+  updatedAt               DateTime  @updatedAt @map("updated_at")
+
+  cards          Card[]
+  transactions   Transaction[]
+  categoryGoals  CategoryGoal[]
+
+  @@index([email])
+  @@index([telegramId])
+  @@index([telegramLinkCode])
+  @@map("users")
+}
+
+// =============================================================================
+// CARDS (cartões de crédito)
+// =============================================================================
+model Card {
+  id          String   @id @default(uuid())
+  userId      String   @map("user_id")
+  name        String
+  limit       Decimal  @db.Decimal(12, 2) // limite total do cartão
+  closingDay  Int      @map("closing_day") // dia do fechamento da fatura (1-31)
+  dueDay      Int      @map("due_day") // dia do vencimento da fatura (1-31)
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  user          User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  transactions   Transaction[]
+
+  @@index([userId])
+  @@map("cards")
+}
+
+// =============================================================================
+// TRANSACTIONS (lançamentos financeiros)
+// =============================================================================
+model Transaction {
+  id                String            @id @default(uuid())
+  userId            String            @map("user_id")
+  cardId            String?           @map("card_id") // opcional: só para type CARD
+  description       String
+  amount            Decimal           @db.Decimal(12, 2) // valor (negativo = despesa, positivo = receita)
+  type              TransactionType   // fixed | variable | card
+  category          String
+  dueDate           DateTime          @map("due_date")
+  isPaid            Boolean          @default(false) @map("is_paid")
+  recurring         Boolean          @default(false)
+  recurringDay      Int?             @map("recurring_day") // dia do mês para recorrência (1-31)
+  installmentTotal  Int?             @map("installment_total") // total de parcelas (ex: 12)
+  installmentNumber  Int?            @map("installment_number") // parcela atual (ex: 3)
+  paymentMethod     PaymentMethod?   @map("payment_method") // débito, pix, dinheiro, crédito (despesas variáveis)
+  createdAt         DateTime         @default(now()) @map("created_at")
+  updatedAt         DateTime         @updatedAt @map("updated_at")
+
+  user  User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  card  Card?  @relation(fields: [cardId], references: [id], onDelete: SetNull)
+
+  @@index([userId])
+  @@index([cardId])
+  @@index([dueDate])
+  @@index([userId, dueDate])
+  @@index([isPaid])
+  @@index([type])
+  @@index([userId, type])
+  @@map("transactions")
+}
+
+enum TransactionType {
+  FIXED      // conta/despesa fixa (ex: aluguel, luz)
+  VARIABLE   // variável (ex: mercado, combustível)
+  CARD       // cartão de crédito
+  INCOME     // receita (ex: salário, freela)
+  ADJUSTMENT // ajuste de saldo (conciliação)
+}
+
+enum PaymentMethod {
+  DEBIT   // débito
+  PIX     // pix
+  CASH    // dinheiro
+  CREDIT  // crédito (só despesa variável, não desconta do saldo na hora)
+}
+
+// =============================================================================
+// CATEGORY GOALS (metas por categoria)
+// =============================================================================
+model CategoryGoal {
+  id            String   @id @default(uuid())
+  userId        String   @map("user_id")
+  category      String   // nome da categoria (ex: gasolina, farmácia, mercado)
+  monthlyLimit  Decimal  @db.Decimal(12, 2) @map("monthly_limit") // teto em R$
+  createdAt     DateTime @default(now()) @map("created_at")
+  updatedAt     DateTime @updatedAt @map("updated_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, category])
+  @@index([userId])
+  @@map("category_goals")
+}
