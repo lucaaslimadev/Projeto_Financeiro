@@ -18,6 +18,7 @@ Sistema full-stack de **controle financeiro pessoal** com dashboard, múltiplos 
 - [Arquitetura](#-arquitetura)
 - [Pré-requisitos](#-pré-requisitos)
 - [Instalação e execução](#-instalação-e-execução)
+- [Docker](#-docker)
 - [Variáveis de ambiente](#-variáveis-de-ambiente)
 - [Scripts disponíveis](#-scripts-disponíveis)
 - [API e documentação](#-api-e-documentação)
@@ -186,6 +187,70 @@ npm run dev:frontend
 - Health: **http://localhost:3001/health**
 
 > **Portas:** em ambiente local (sem Docker) o backend usa 3001 e o frontend 3000. Com `docker-compose up`, o backend usa 3011 e o frontend 3010. Ajuste `NEXT_PUBLIC_API_URL` no `.env` de acordo (ex.: `http://localhost:3001/api/v1` local e `http://localhost:3011/api/v1` com Docker).
+
+---
+
+## 🐳 Docker
+
+O projeto pode ser executado **inteiramente com Docker Compose**: PostgreSQL, backend (Node/Express) e frontend (Next.js) sobem em containers, prontos para desenvolvimento ou demonstração.
+
+### Serviços
+
+| Serviço | Imagem / Build | Porta (host) | Descrição |
+|--------|----------------|--------------|-----------|
+| **postgres** | `postgres:16-alpine` | 5434 → 5432 | Banco de dados. Volume persiste dados. Healthcheck antes do backend subir. |
+| **backend** | Build `backend/Dockerfile` | 3011 → 3001 | API Express. Roda `prisma migrate deploy` na subida e inicia o servidor + jobs (cron). Base Debian (node:20-bookworm-slim) por compatibilidade com Prisma. |
+| **frontend** | Build `frontend/Dockerfile` | 3010 → 3000 | Next.js em modo standalone. A URL da API (`NEXT_PUBLIC_API_URL`) é injetada no **build**; para alterá-la é necessário rebuild da imagem. |
+
+### Como subir
+
+Na raiz do projeto, com um `.env` configurado (copie de `.env.example`):
+
+```bash
+docker-compose up --build
+```
+
+Para rodar em segundo plano:
+
+```bash
+docker-compose up -d --build
+```
+
+- **Frontend:** http://localhost:3010 (ou valor de `FRONTEND_PORT` no `.env`)
+- **Backend (API):** http://localhost:3011 (ou `BACKEND_PORT`)
+- **Health check da API:** http://localhost:3011/health
+- **PostgreSQL:** `localhost:5434` (usuário `postgres`, senha `postgres`, banco `projeto_financeiro`)
+
+### Seed (dados de exemplo) com Docker
+
+Após a primeira subida, as migrações são aplicadas automaticamente. Para popular o banco com usuários e transações de exemplo:
+
+```bash
+docker exec projeto_financeiro_backend npx prisma db seed
+```
+
+(Senha dos usuários de teste: `123456`.)
+
+### Comandos úteis
+
+| Comando | Descrição |
+|---------|-----------|
+| `docker-compose up -d` | Sobe os containers em segundo plano. |
+| `docker-compose down` | Para e remove os containers (o volume do Postgres é mantido). |
+| `docker-compose logs -f backend` | Acompanha os logs do backend. |
+| `docker-compose build --no-cache backend` | Rebuild do backend (útil se houver erro de Prisma/engine). |
+
+### Subir só o PostgreSQL
+
+Para desenvolver backend e frontend localmente e usar apenas o banco em Docker:
+
+```bash
+docker-compose up -d postgres
+```
+
+Depois use `DATABASE_URL=postgresql://postgres:postgres@localhost:5434/projeto_financeiro?schema=public` e rode `npm run db:generate`, `npm run db:migrate` e `npm run dev:backend` / `npm run dev:frontend` na máquina.
+
+Documentação detalhada (variáveis, rebuild completo, troubleshooting): **[DOCKER.md](./DOCKER.md)**.
 
 ---
 
